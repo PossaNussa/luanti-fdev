@@ -30,14 +30,6 @@ struct ClientCommandFactory
 	bool reliable;
 };
 
-// In namespace or scope consistent with other handlers:
-class Server;
-struct NetworkPacket;
-
-// FlashEng handler
-void handleCommand_FE_VerifyBlocks(Server *server, NetworkPacket* pkt);
-
-
 extern const ToServerCommandHandler toServerCommandTable[TOSERVER_NUM_MSG_TYPES];
 
 extern const ClientCommandFactory clientCommandFactoryTable[TOCLIENT_NUM_MSG_TYPES];
