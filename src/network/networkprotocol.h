@@ -898,12 +898,6 @@ enum ToServerCommand : u16
 		f32 hud_scaling
 		v2f32 max_fs_info
 	*/
-// Payload layout:
-//   u16 count
-//   repeat count times:
-//     v3s16 blockpos (MapBlock coords)
-//     u8[20] sha1 (of the server's canonical MapBlock serialization)
-	TOSERVER_FE_VERIFY_BLOCKS = 0x5A,
 
 	TOSERVER_NUM_MSG_TYPES = 0x54,
 };
