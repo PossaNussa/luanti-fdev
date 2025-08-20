@@ -85,6 +85,8 @@ enum ToClientCommand : u16
 		v3s16 position
 	*/
 
+	TOCLIENT_BLOCKDATA_UNCHANGED = 0x26
+
 	TOCLIENT_INVENTORY = 0x27,
 	/*
 		serialized inventory
