@@ -336,6 +336,19 @@ public:
 		return m_timestamp;
 	}
 
+	/**
+	 * Compute a lightweight checksum for the block.
+	 *
+	 * The checksum is used by FlashEng's client/server cache coherence system to
+	 * determine whether a mapblock has changed.  We reuse the block's last
+	 * modification timestamp as a simple hash.  This value changes whenever
+	 * nodes are modified or the block is generated, and provides a fast
+	 * indicator of whether the content has changed since it was last cached.
+	 *
+	 * @return 32‑bit checksum representing the block's current state
+	 */
+	inline u32 getChecksum() const;
+
 	/// @deprecated don't use in new code, unclear semantics.
 	inline u32 getDiskTimestamp()
 	{

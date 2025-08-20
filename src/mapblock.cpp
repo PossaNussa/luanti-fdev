@@ -931,3 +931,14 @@ std::string analyze_block(MapBlock *block)
 
 
 //END
+
+/*
+ * Provide a simple checksum for the block to support client/server cache
+ * validation.  We reuse the timestamp as the checksum.  Casting away
+ * constness is required because getTimestamp() is not a const method.
+ */
+u32 MapBlock::getChecksum() const
+{
+    // getTimestamp is non‑const; cast away constness
+    return const_cast<MapBlock*>(this)->getTimestamp();
+}
