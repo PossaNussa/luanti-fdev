@@ -170,6 +170,15 @@ public:
 	void handleCommand_AddNode(NetworkPacket* pkt);
 	void handleCommand_NodemetaChanged(NetworkPacket *pkt);
 	void handleCommand_BlockData(NetworkPacket* pkt);
+	/*
+	 * Handle TOCLIENT_BLOCKDATA_UNCHANGED messages from the server.
+	 *
+	 * This packet informs the client that the mapblock at the given position
+	 * has not changed since it was last cached.  Instead of receiving new
+	 * block data, the client should load the block from its local map
+	 * database.  Implemented by FlashEng to reduce bandwidth usage.
+	 */
+	void handleCommand_BlockDataUnchanged(NetworkPacket* pkt);
 	void handleCommand_Inventory(NetworkPacket* pkt);
 	void handleCommand_TimeOfDay(NetworkPacket* pkt);
 	void handleCommand_ChatMessage(NetworkPacket *pkt);

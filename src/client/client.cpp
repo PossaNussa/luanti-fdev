@@ -13,6 +13,7 @@
 #include "network/clientopcodes.h"
 #include "network/connection.h"
 #include "network/networkpacket.h"
+#include "network/networkprotocol.h"
 #include "threading/mutex_auto_lock.h"
 #include "client/clientevent.h"
 #include "client/renderingengine.h"
@@ -28,6 +29,8 @@
 #include "util/serialize.h"
 #include "util/string.h"
 #include "util/srp.h"
+#include "mapsector.h"
+#include "mapblock.h"
 #include "filesys.h"
 #include "mapblock_mesh.h"
 #include "mapblock.h"
@@ -1217,6 +1220,36 @@ void Client::sendDeletedBlocks(std::vector<v3s16> &blocks)
 
 void Client::sendGotBlocks(const std::vector<v3s16> &blocks)
 {
+    // FlashEng modification: Before acknowledging mapblocks, proactively
+    // request them from the server with a checksum.  This allows the
+    // server to skip resending unchanged blocks, dramatically reducing
+    // bandwidth usage when revisiting areas.  We only do this when
+    // local map saving is enabled and the client has a cache of
+    // previously received blocks.
+    if (m_localdb) {
+        // For each block to be acknowledged, send a TOSERVER_REQUEST_BLOCK
+        // containing the block position and the client’s current checksum
+        // for that block.  We compute the checksum using the in‑memory
+        // MapBlock’s timestamp if it is loaded.  If the block is not
+        // currently loaded, we send zero as the checksum.
+        for (const v3s16 &pos : blocks) {
+            u32 checksum = 0;
+            // Attempt to retrieve the block from the client map.  This
+            // does not force loading; if the block isn’t cached we
+            // assume we don’t know its state.
+            ClientMap &map = m_env.getClientMap();
+            MapSector *sector = map.getSectorNoGenerate(v2s16(pos.X, pos.Z));
+            if (sector) {
+                MapBlock *blk = sector->getBlockNoCreateNoEx(pos.Y);
+                if (blk)
+                    checksum = blk->getTimestamp();
+            }
+            NetworkPacket req_pkt(TOSERVER_REQUEST_BLOCK, sizeof(v3s16) + sizeof(u32));
+            req_pkt << pos << checksum;
+            Send(&req_pkt);
+        }
+    }
+
 	NetworkPacket pkt(TOSERVER_GOTBLOCKS, 1 + 6 * blocks.size());
 	pkt << (u8) blocks.size();
 	for (const v3s16 &block : blocks)
