@@ -854,6 +854,8 @@ enum ToServerCommand : u16
 			u32 token
 	*/
 
+    TOSERVER_REQUEST_BLOCK = 0x42, 
+
 	TOSERVER_CLIENT_READY = 0x43,
 	/*
 		u8 major
