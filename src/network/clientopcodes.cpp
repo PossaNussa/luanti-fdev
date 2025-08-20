@@ -49,7 +49,7 @@ const ToClientCommandHandler toClientCommandTable[TOCLIENT_NUM_MSG_TYPES] =
 	null_command_handler,
 	null_command_handler,
 	null_command_handler,
-	null_command_handler,
+	{ "TOCLIENT_BLOCKDATA_UNCHANGED",            TOCLIENT_STATE_CONNECTED, &Client::handleCommand_BlockDataUnchanged },
 	{ "TOCLIENT_INVENTORY",                TOCLIENT_STATE_CONNECTED, &Client::handleCommand_Inventory }, // 0x27
 	null_command_handler,
 	{ "TOCLIENT_TIME_OF_DAY",              TOCLIENT_STATE_CONNECTED, &Client::handleCommand_TimeOfDay }, // 0x29

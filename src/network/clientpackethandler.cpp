@@ -320,6 +320,87 @@ void Client::handleCommand_BlockData(NetworkPacket* pkt)
 	addUpdateMeshTaskWithEdge(p, true);
 }
 
+/*
+ * Process a TOCLIENT_BLOCKDATA_UNCHANGED message.  The server sends this
+ * packet when a client requests a map block and the server determines
+ * the client's cached copy is still valid.  Instead of receiving
+ * serialized map block data, we load the block from our local map
+ * database, update it in memory and schedule a mesh update.  This
+ * drastically reduces bandwidth usage when revisiting previously
+ * explored areas.
+ */
+void Client::handleCommand_BlockDataUnchanged(NetworkPacket* pkt)
+{
+    // A block position consists of 3 int16 values (6 bytes).  Ignore
+    // packets that are too small.
+    if (pkt->getSize() < 6)
+        return;
+
+    v3s16 p;
+    *pkt >> p;
+
+    // If local map saving isn't enabled or initialized, we can't load the
+    // block from disk.  Silently ignore the packet; the server will
+    // eventually send a full block update when something changes.
+    if (!m_localdb)
+        return;
+
+    // Attempt to load the serialized block from our local map database.  The
+    // database stores raw block blobs identical to those written by
+    // ServerMap::saveBlock().
+    std::string raw;
+    m_localdb->loadBlock(p, &raw);
+
+    if (raw.empty()) {
+        // No cached data available.  Without cached data we cannot
+        // reconstruct the block, so we do nothing.  The client will
+        // continue rendering nothing until it requests the block again.
+        return;
+    }
+
+    // Deserialize the block data from disk format.  Disk‑serialized
+    // blocks include a version byte followed by the block data.  We
+    // replicate the logic from ServerMap::deSerializeBlock().
+    std::istringstream is(raw, std::ios_base::binary);
+    // First byte is the serialization version
+    u8 version;
+    try {
+        version = readU8(is);
+    } catch (SerializationError &e) {
+        warningstream << "Client: BlockDataUnchanged: invalid local block data at "
+                      << "(" << p.X << "," << p.Y << "," << p.Z << ")"
+                      << ": " << e.what() << std::endl;
+        return;
+    }
+
+    ClientMap &map = m_env.getClientMap();
+    v2s16 p2d(p.X, p.Z);
+    MapSector *sector = map.emergeSector(p2d);
+
+    // Load the block: update an existing block or create a new one
+    MapBlock *block = sector->getBlockNoCreateNoEx(p.Y);
+    if (!block)
+        block = sector->createBlankBlock(p.Y);
+
+    // Deserialize the block using disk=true.  This will update the
+    // timestamp and other properties correctly.
+    try {
+        block->deSerialize(is, version, true);
+        block->deSerializeNetworkSpecific(is);
+    } catch (SerializationError &e) {
+        warningstream << "Client: BlockDataUnchanged: failed to deserialize block "
+                      << "(" << p.X << "," << p.Y << "," << p.Z << ")"
+                      << ": " << e.what() << std::endl;
+        return;
+    }
+
+    // Schedule a mesh update for this block and mark it for
+    // acknowledgement.  The second parameter indicates that the block
+    // should be acknowledged to the server once the mesh update has
+    // completed.
+    addUpdateMeshTaskWithEdge(p, true);
+}
+
 void Client::handleCommand_Inventory(NetworkPacket* pkt)
 {
 	if (pkt->getSize() < 1)

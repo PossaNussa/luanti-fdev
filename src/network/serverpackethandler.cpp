@@ -1821,3 +1821,73 @@ void Server::handleCommand_UpdateClientInfo(NetworkPacket *pkt)
 	RemoteClient *client = getClient(peer_id, CS_Invalid);
 	client->setDynamicInfo(info);
 }
+
+/*
+    FlashEng enhancement: handle TOSERVER_REQUEST_BLOCK (0x42)
+
+    The client sends this packet when it wants to ensure a map block is up‑to‑date.
+    The packet format is:
+      v3s16 block_pos      – position of the block in mapblock coordinates
+      u32  client_checksum – checksum of the client's cached copy (0 if none)
+
+    The server responds in one of three ways:
+    - If the block is not yet loaded or generated, it queues the block for emerge and does nothing else.
+      The block will be sent later via normal block sending logic.
+    - If the server's checksum matches the client's, the server sends TOCLIENT_BLOCKDATA_UNCHANGED
+      to tell the client to use its cached data.
+    - Otherwise the server marks the block as unsent for the requesting client so it will be sent
+      via the existing block send mechanism.
+*/
+void Server::handleCommand_RequestBlock(NetworkPacket *pkt)
+{
+    // Validate minimum packet size: v3s16 (6 bytes) + u32 (4 bytes)
+    if (pkt->getSize() < 10)
+        return;
+
+    // Extract position and client checksum
+    v3s16 block_pos;
+    u32 client_crc = 0;
+    *pkt >> block_pos;
+    *pkt >> client_crc;
+
+    session_t peer_id = pkt->getPeerId();
+
+    // Access the server map and check if the block exists
+    MapBlock *block = nullptr;
+    {
+        // Environment lock is held internally in getBlockNoCreateNoEx
+        block = m_env->getMap().getBlockNoCreateNoEx(block_pos);
+    }
+
+    // If block not loaded or generated, queue generation and return
+    if (!block) {
+        // queue emerge generation so the block will be sent later
+        if (m_emerge) {
+            m_emerge->enqueueBlockEmerge(peer_id, block_pos, true);
+        }
+        return;
+    }
+
+    // Compute a simple checksum for the block.
+    // We use the block's timestamp as a lightweight proxy for the block contents.
+    // If the timestamp changes whenever the block is modified, matching timestamps
+    // imply the client's cached data is up‑to‑date.
+    u32 server_crc = block->getTimestamp();
+
+    // If checksums match, inform client that its cached copy is valid
+    if (server_crc == client_crc) {
+        NetworkPacket resp(TOCLIENT_BLOCKDATA_UNCHANGED, 6, peer_id);
+        resp << block_pos;
+        Send(&resp);
+        return;
+    }
+
+    // Otherwise, mark the block as unsent for this client so it will be sent via the standard mechanism
+    {
+        ClientInterface::AutoLock lock(m_clients);
+        RemoteClient *client = m_clients.lockedGetClientNoEx(peer_id);
+        if (client) {
+            client->SetBlockNotSent(block_pos);
+        }
+    }
+}
